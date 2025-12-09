@@ -1,6 +1,9 @@
 let player;
 let npcs = [];
 let hintNpc;
+let bg;
+let showTutorial = true;   // 一開始顯示使用說明彈窗
+
 
 let currentNpc = null;
 let currentQuestion = null;
@@ -24,6 +27,8 @@ let lastAskedNpcIndex = -1;
 let resultNpc = null;
 
 function preload() {
+  bg = loadImage('bg.png');
+
   // player
   player = {
     x: 1000,
@@ -262,17 +267,35 @@ function setup() {
   document.body.style.overflow = "hidden";
 
   textAlign(CENTER, CENTER);
+    // 玩家置中
+  player.x = width / 2;
+  player.y = height / 2;
+
+  // === 修正：所有 NPC 在 setup 設置，不會被覆蓋 ===
+  npcs[0].x = width * (2 / 3);   // ask1
+  npcs[0].y = height * (1 / 2)-50;
+
+  npcs[1].x = width * (1 / 3);   // ask2
+  npcs[1].y = height * (1 / 2)-50;
+
+  npcs[2].x = width * (1 / 2);   // ask3
+  npcs[2].y = height * (2 / 3);
+
+  hintNpc.x = width * (1 / 2);
+  hintNpc.y = height * (1 / 3);
 }
 
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-}
+
 
 
 function draw() {
-  
-  // 背景填滿 #414071 色
-  background('#414071');
+  background(bg);
+
+    // === 使用說明彈窗 ===
+  if (showTutorial) {
+    drawTutorialPopup();
+    return;   // 阻止後面的遊戲繪製
+  }
   
   // 更新玩家
   updatePlayer();
@@ -674,4 +697,120 @@ function checkAnswer() {
   // 清除目前編輯的 NPC / 題目（等待結果結束後若玩家仍在範圍內會自動出下一題）
   currentNpc = null;
   currentQuestion = null;
+}
+
+// ----------- Background cover (保持比例填滿，並置中，避免 transform 影響) -----------
+function drawBackgroundCover(img) {
+  if (!img || !img.width || !img.height) {
+    // 如果圖片尚未載入或無效就跳過
+    background('#414071');
+    return;
+  }
+
+  // 計算影像與畫布比例
+  let imgRatio = img.width / img.height;
+  let canvasRatio = width / height;
+  let drawW, drawH;
+
+  // 畫布比圖像寬（橫向較寬）→ 以寬為基準放大
+  if (canvasRatio > imgRatio) {
+    drawW = width;
+    drawH = width / imgRatio;
+  } else {
+    // 畫布較窄或較高 → 以高為基準放大
+    drawH = height;
+    drawW = height * imgRatio;
+  }
+
+  // 計算置中偏移（使 cover 後置中）
+  let x = (width - drawW) / 2;
+  let y = (height - drawH) / 2;
+
+  // 使用 CORNER 模式並重置 matrix，避免前面 transform 影響
+  push();
+  resetMatrix();        // 恢復到預設變換矩陣
+  imageMode(CORNER);
+  image(img, x, y, drawW, drawH);
+  pop();
+}
+
+// ====================== 使用說明彈窗 ======================
+function drawTutorialPopup() {
+  push();
+
+  // 半透明黑色背景
+  fill(0, 150);
+  noStroke();
+  rect(0, 0, width, height);
+
+  // 白色彈窗本體
+  let w = 500;
+  let h = 320;
+  let x = (width - w) / 2;
+  let y = (height - h) / 2;
+
+  fill(255);
+  stroke(0);
+  strokeWeight(2);
+  rect(x, y, w, h, 12);
+
+  // 文字內容
+  fill(0);
+  noStroke();
+  textSize(18);
+  textAlign(CENTER, TOP);
+
+  let msg = 
+    "使用說明\n\n" +
+    "往左、往右、往下走會遇到死神。\n" +
+    "他們各有兩題問題，會隨機問你。\n\n" +
+    "如果答錯了，往上走找貓咪可以取得提示。\n\n" +
+    "答對了才會切換下一題喔！\n" +
+    "努力打敗所有死神吧！";
+
+  text(msg, width / 2, y + 25);
+
+  // OK 按鈕
+  let btnW = 120;
+  let btnH = 40;
+  let btnX = width / 2 - btnW / 2;
+  let btnY = y + h - 60;
+
+  fill(230);
+  stroke(0);
+  strokeWeight(2);
+  rect(btnX, btnY, btnW, btnH, 8);
+
+  fill(0);
+  noStroke();
+  textSize(20);
+  text("OK", width / 2, btnY + btnH / 2 - 8);
+
+  pop();
+}
+
+function mousePressed() {
+
+  // 如果彈窗存在 → 檢查是否點擊 OK
+  if (showTutorial) {
+    let w = 500;
+    let h = 320;
+    let x = (width - w) / 2;
+    let y = (height - h) / 2;
+
+    let btnW = 120;
+    let btnH = 40;
+    let btnX = width / 2 - btnW / 2;
+    let btnY = y + h - 60;
+
+    // 點擊 OK 按鈕
+    if (mouseX > btnX && mouseX < btnX + btnW &&
+        mouseY > btnY && mouseY < btnY + btnH) {
+
+      showTutorial = false;  // 關閉彈窗
+    }
+    return; // 不處理其他點擊
+  }
+
+  // 若沒有彈窗 → 這裡放你原本的 mousePressed 行為（如果有的話）
 }
