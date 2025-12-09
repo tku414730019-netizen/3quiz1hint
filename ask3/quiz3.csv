@@ -1,0 +1,13 @@
+﻿question,answer
+"在處理spritesheet連續動畫圖時，p
+5.js常用哪個函式切割每一格影像？
+A.copy()
+B.loadPixels()
+C.get()
+D.loadImage()",C
+"若想讀取題庫CSV並存為可查詢陣列，
+應使用哪個函式載入資料？
+A.createFile()
+B.loadTable()
+C.getTable()
+D.readCSV()",B
