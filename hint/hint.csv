@@ -1,0 +1,7 @@
+﻿hint
+"記得切換動畫通常依靠frameCount累計"
+"使用state讓程式更清楚"
+"用draw()搭配keyIsDown()控制移動較順"
+"互動通常用dit()判斷距離"
+"切割sprite請用get()"
+"題庫讀取最常用loadTable()"
