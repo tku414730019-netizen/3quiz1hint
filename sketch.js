@@ -4,6 +4,9 @@ let hintNpc;
 let bg;
 let showTutorial = true;   // 一開始顯示使用說明彈窗
 
+// 音樂和音效
+let bgMusic;
+let gameSound;
 
 let currentNpc = null;
 let currentQuestion = null;
@@ -28,6 +31,17 @@ let resultNpc = null;
 
 function preload() {
   bg = loadImage('bg.png');
+
+  // 載入音樂和音效
+  bgMusic = loadSound('assets/bgmusic.mp3',
+    () => console.log('背景音樂載入成功'),
+    () => console.error('背景音樂載入失敗')
+  );
+  
+  gameSound = loadSound('assets/gamesound.mp3',
+    () => console.log('遊戲音效載入成功'),
+    () => console.error('遊戲音效載入失敗')
+  );
 
   // player
   player = {
@@ -300,16 +314,46 @@ function draw() {
   // 更新玩家
   updatePlayer();
   
-  // 繪製 hint NPC
-  drawNpc(hintNpc);
+  // === 根據 Y 座標排序繪製順序（實現空間感）===
+  // 收集所有角色（玩家 + 所有 NPC）
+  let allCharacters = [];
   
-  // 繪製 ask NPCs
+  // 加入玩家
+  allCharacters.push({
+    type: 'player',
+    y: player.y,
+    obj: player
+  });
+  
+  // 加入 hint NPC
+  allCharacters.push({
+    type: 'hint',
+    y: hintNpc.y,
+    obj: hintNpc
+  });
+  
+  // 加入所有 ask NPCs
   for (let npc of npcs) {
-    drawNpc(npc);
+    allCharacters.push({
+      type: 'npc',
+      y: npc.y,
+      obj: npc
+    });
   }
   
-  // 繪製玩家
-  drawPlayer();
+  // 根據 Y 座標排序（Y 值小的先畫，Y 值大的後畫，這樣後畫的會覆蓋在上面）
+  allCharacters.sort((a, b) => a.y - b.y);
+  
+  // 按順序繪製所有角色
+  for (let char of allCharacters) {
+    if (char.type === 'player') {
+      drawPlayer();
+    } else if (char.type === 'hint') {
+      drawNpc(hintNpc);
+    } else if (char.type === 'npc') {
+      drawNpc(char.obj);
+    }
+  }
   
   // 檢查互動
   checkInteractions();
@@ -617,6 +661,10 @@ function drawResultMessage() {
 function keyPressed() {
   if (showQuiz && key === 'Enter') {
     checkAnswer();
+    // 播放音效
+    if (gameSound) {
+      gameSound.play();
+    }
   }
   
   if (showQuiz && keyCode === BACKSPACE) {
@@ -628,6 +676,10 @@ function keyPressed() {
     // 尚未答錯：不給提示
     if (lastWrongQuestionIndex < 0) {
       hintMessage = "尚未回答題目，先嘗試看看吧！";
+      // 播放音效
+      if (gameSound) {
+        gameSound.play();
+      }
       return;
     }
 
@@ -639,10 +691,18 @@ function keyPressed() {
 
         if (gIndex < 0 || gIndex >= total) {
           hintMessage = "此題沒有對應提示";
+          // 播放音效
+          if (gameSound) {
+            gameSound.play();
+          }
           return;
         }
 
         hintMessage = hintNpc.hints.getString(gIndex, 'hint');
+        // 播放音效
+        if (gameSound) {
+          gameSound.play();
+        }
 
       } catch(e) {
         console.error("讀取提示失敗:", e);
@@ -808,6 +868,16 @@ function mousePressed() {
         mouseY > btnY && mouseY < btnY + btnH) {
 
       showTutorial = false;  // 關閉彈窗
+      
+      // 播放音效
+      if (gameSound) {
+        gameSound.play();
+      }
+      
+      // 開始播放背景音樂（循環）
+      if (bgMusic && !bgMusic.isPlaying()) {
+        bgMusic.loop();
+      }
     }
     return; // 不處理其他點擊
   }
