@@ -81,6 +81,14 @@ function preload() {
     state: 'stay',
     staySheet: null,
     frames: [],
+
+    dieSheet: null,
+    dieFrames: [],
+    dieFrameIndex: 0,
+    isDead: false,
+    isDying: false,
+
+
     fw: 48,
     fh: 51,
     quiz: null,
@@ -103,6 +111,14 @@ function preload() {
       createPlaceholderFrames(a1.frames, 48, 51);
     }
   );
+  a1.dieSheet = loadImage('ask1/die/50x60.png',
+    (img) => {
+      console.log('ask1 die 載入成功');
+      extractFrames(img, a1.dieFrames, 50, 60, 5);
+    },
+    () => console.error('ask1 die 載入失敗')
+  );
+
   
   loadTable('ask1/quiz1.csv', 'csv', 'header',
     (table) => {
@@ -123,6 +139,13 @@ function preload() {
     state: 'stay',
     staySheet: null,
     frames: [],
+
+    dieSheet: null,
+    dieFrames: [],
+    dieFrameIndex: 0,
+    isDead: false,
+    isDying: false,
+
     fw: 47,
     fh: 62,
     quiz: null,
@@ -145,6 +168,15 @@ function preload() {
       createPlaceholderFrames(a2.frames, 47, 62);
     }
   );
+ 
+  a2.dieSheet = loadImage('ask2/die/47x71.png',
+    (img) => {
+      console.log('ask2 die 載入成功');
+      extractFrames(img, a2.dieFrames, 47, 71, 5);
+    },
+    () => console.error('ask2 die 載入失敗')
+  );
+
   
   loadTable('ask2/quiz2.csv', 'csv', 'header',
     (table) => {
@@ -165,6 +197,14 @@ function preload() {
     state: 'stay',
     staySheet: null,
     frames: [],
+
+    dieSheet: null,
+    dieFrames: [],
+    dieFrameIndex: 0,
+    isDead: false,
+    isDying: false,
+
+
     fw: 46,
     fh: 40,
     quiz: null,
@@ -187,6 +227,15 @@ function preload() {
       createPlaceholderFrames(a3.frames, 46, 40);
     }
   );
+
+  a3.dieSheet = loadImage('ask3/die/44x40.png',
+    (img) => {
+      console.log('ask3 die 載入成功');
+      extractFrames(img, a3.dieFrames, 44, 40, 5);
+    },
+    () => console.error('ask3 die 載入失敗')
+  );
+
   
   loadTable('ask3/quiz3.csv', 'csv', 'header',
     (table) => {
@@ -457,43 +506,60 @@ function drawPlayer() {
 
 // ===== ask2 左右翻轉版本 =====
 function drawNpc(npc) {
-  if (!npc.frames || npc.frames.length === 0) {
-    push();
-    translate(npc.x, npc.y);
-    fill(255, 100, 100);
-    ellipse(0, 0, 30, 30);
+  push();
+  translate(npc.x, npc.y);
+  imageMode(CENTER);
+
+  // === die 動畫中 ===
+  if (npc.isDying && npc.dieFrames.length > 0) {
+    let frame = npc.dieFrames[npc.dieFrameIndex];
+    scale(npc.folder === 'ask2' ? -npc.scale : npc.scale, npc.scale);
+    image(frame, 0, 0);
+
+    npc.frameCounter++;
+    if (npc.frameCounter >= npc.frameDelay) {
+      npc.frameCounter = 0;
+      npc.dieFrameIndex++;
+
+      // 播完 → 停住
+      if (npc.dieFrameIndex >= npc.dieFrames.length) {
+        npc.dieFrameIndex = npc.dieFrames.length - 1;
+        npc.isDying = false;
+        npc.isDead = true;
+      }
+    }
+
     pop();
     return;
   }
 
+  // === 已死亡：停在最後一禎 ===
+  if (npc.isDead && npc.dieFrames.length > 0) {
+    scale(npc.folder === 'ask2' ? -npc.scale : npc.scale, npc.scale);
+    image(npc.dieFrames[npc.dieFrames.length - 1], 0, 0);
+    pop();
+    return;
+  }
+
+  // === 正常 stay 動畫 ===
   npc.frameCounter++;
   if (npc.frameCounter >= npc.frameDelay) {
     npc.frameCounter = 0;
     npc.currentFrame = (npc.currentFrame + 1) % npc.frames.length;
   }
 
-  push();
-  translate(npc.x, npc.y);
-  imageMode(CENTER);
+  scale(npc.folder === 'ask2' ? -npc.scale : npc.scale, npc.scale);
+  image(npc.frames[npc.currentFrame], 0, 0);
 
-  if (npc.folder === 'ask2') {
-    // === 專為 ask2 左右翻轉 ===
-    scale(-npc.scale, npc.scale);
-    // 因為 scale(-1) 會反向，補償 X 位移（圖片寬度的一半）
-    image(npc.frames[npc.currentFrame], 0, 0);
-  } else {
-    // 其他 NPC 保持原樣
-    scale(npc.scale);
-    image(npc.frames[npc.currentFrame], 0, 0);
-  }
   pop();
 }
 
 
+
 function checkInteractions() {
   let playerNearNpc = false;
-  
   for (let npc of npcs) {
+    if (npc.isDead) continue;
     let d = dist(player.x, player.y, npc.x, npc.y);
     if (d < 100) {
       playerNearNpc = true;
@@ -731,6 +797,11 @@ function checkAnswer() {
     // 記錄為已答對的題目
     if (currentNpc) {
       currentNpc.answeredQuestions.push(currentQuestion.index);
+      // ⭐ 如果兩題都答對，啟動死亡動畫
+      if (currentNpc.answeredQuestions.length >= 2 && !currentNpc.isDead) {
+        currentNpc.isDying = true;
+        currentNpc.dieFrameIndex = 0;
+      }
     }
   } else {
     quizResult = '答錯了，答案是 ' + currentQuestion.answer;
