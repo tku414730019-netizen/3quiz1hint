@@ -29,6 +29,51 @@ let lastAskedNpcIndex = -1;
 // 用來顯示結果訊息的 NPC（回答後可在該 NPC 頭上顯示正/錯）
 let resultNpc = null;
 
+// 新增控制變數
+let typewriterIndex = 0;      // 打字機目前顯示到第幾個字
+let typewriterSpeed = 0.5;    // 打字速度（數字越小越慢）
+let shakeAmount = 0;          // 震動強度
+
+let leaves = []; // 存放葉子的陣列
+
+class Leaf {
+  constructor() {
+    this.x = random(width);
+    this.y = random(-500, -50); // 從螢幕上方外面開始掉落
+    this.size = random(10, 20);
+    this.speedY = random(1, 3);
+    this.speedX = random(-1, 1);
+    this.angle = random(TWO_PI);
+    this.rotationSpeed = random(0.02, 0.05);
+  }
+
+  update() {
+    this.y += this.speedY;
+    this.x += sin(frameCount * 0.02) + this.speedX; // 讓葉子有左右飄盪感
+    this.angle += this.rotationSpeed;
+    
+    // 如果掉出螢幕下方，重新回到上方
+    if (this.y > height) {
+      this.y = -50;
+      this.x = random(width);
+    }
+  }
+
+  display() {
+    push();
+    translate(this.x, this.y);
+    rotate(this.angle);
+    fill(100, 150, 50, 200); // 綠色葉子，帶點透明
+    noStroke();
+    // 畫一個簡單的葉子形狀（橢圓）
+    ellipse(0, 0, this.size, this.size / 2);
+    // 葉脈線條
+    stroke(50, 80, 20);
+    line(-this.size/2, 0, this.size/2, 0);
+    pop();
+  }
+}
+
 function preload() {
   bg = loadImage('bg.png');
 
@@ -98,7 +143,9 @@ function preload() {
     frameCounter: 0,
     hasQuiz: false,
     answeredQuestions: [],
-    npcIndex: 0
+    npcIndex: 0,
+    
+    shakeAmount: 0
   };
   
   a1.staySheet = loadImage('ask1/stay/48x51.png',
@@ -155,7 +202,9 @@ function preload() {
     frameCounter: 0,
     hasQuiz: false,
     answeredQuestions: [],
-    npcIndex: 1
+    npcIndex: 1,
+
+    shakeAmount: 0,
   };
   
   a2.staySheet = loadImage('ask2/stay/47x62.png',
@@ -214,7 +263,9 @@ function preload() {
     frameCounter: 0,
     hasQuiz: false,
     answeredQuestions: [],
-    npcIndex: 2
+    npcIndex: 2,
+
+    shakeAmount: 0,
   };
   
   a3.staySheet = loadImage('ask3/stay/46x40.png',
@@ -442,6 +493,10 @@ function draw() {
       resultNpc = null;
     }
   }
+  leaves.forEach(leaf => {
+    leaf.update();
+    leaf.display();
+  });
 }
 
 function updatePlayer() {
@@ -504,53 +559,55 @@ function drawPlayer() {
   pop();
 }
 
-// ===== ask2 左右翻轉版本 =====
 function drawNpc(npc) {
   push();
-  translate(npc.x, npc.y);
+  // 1. 先定位到 NPC 的基準點
+  translate(npc.x, npc.y); 
   imageMode(CENTER);
 
-  // === die 動畫中 ===
-  if (npc.isDying && npc.dieFrames.length > 0) {
-    let frame = npc.dieFrames[npc.dieFrameIndex];
-    scale(npc.folder === 'ask2' ? -npc.scale : npc.scale, npc.scale);
-    image(frame, 0, 0);
+  // 2. 計算震動位移（局部變數，不改動 npc.x）
+  let sx = 0;
+  let sy = 0;
+  if (npc.shakeAmount > 0) {
+    sx = random(-npc.shakeAmount, npc.shakeAmount);
+    sy = random(-npc.shakeAmount, npc.shakeAmount);
+    npc.shakeAmount *= 0.85; // 稍微加快衰減速度
+    if (npc.shakeAmount < 0.1) npc.shakeAmount = 0;
+  }
 
+  // 3. 計算呼吸 (死亡不呼吸)
+  let breathe = sin(frameCount * 0.1) * 0.05;
+  let currentScale = npc.scale + (npc.isDead ? 0 : breathe);
+  let direction = npc.folder === 'ask2' ? -1 : 1;
+
+  scale(direction * currentScale, currentScale);
+
+  // 4. 繪製圖片時才加入 sx, sy
+  if (npc.isDying && npc.dieFrames.length > 0) {
+    image(npc.dieFrames[npc.dieFrameIndex], sx, sy); // 加入震動位移
+    
     npc.frameCounter++;
     if (npc.frameCounter >= npc.frameDelay) {
       npc.frameCounter = 0;
       npc.dieFrameIndex++;
-
-      // 播完 → 停住
       if (npc.dieFrameIndex >= npc.dieFrames.length) {
         npc.dieFrameIndex = npc.dieFrames.length - 1;
         npc.isDying = false;
         npc.isDead = true;
       }
     }
-
-    pop();
-    return;
+  } else if (npc.isDead && npc.dieFrames.length > 0) {
+    image(npc.dieFrames[npc.dieFrames.length - 1], sx, sy);
+  } else {
+    // 正常狀態動畫
+    npc.frameCounter++;
+    if (npc.frameCounter >= npc.frameDelay) {
+      npc.frameCounter = 0;
+      npc.currentFrame = (npc.currentFrame + 1) % npc.frames.length;
+    }
+    image(npc.frames[npc.currentFrame], sx, sy); // 加入震動位移
   }
-
-  // === 已死亡：停在最後一禎 ===
-  if (npc.isDead && npc.dieFrames.length > 0) {
-    scale(npc.folder === 'ask2' ? -npc.scale : npc.scale, npc.scale);
-    image(npc.dieFrames[npc.dieFrames.length - 1], 0, 0);
-    pop();
-    return;
-  }
-
-  // === 正常 stay 動畫 ===
-  npc.frameCounter++;
-  if (npc.frameCounter >= npc.frameDelay) {
-    npc.frameCounter = 0;
-    npc.currentFrame = (npc.currentFrame + 1) % npc.frames.length;
-  }
-
-  scale(npc.folder === 'ask2' ? -npc.scale : npc.scale, npc.scale);
-  image(npc.frames[npc.currentFrame], 0, 0);
-
+  
   pop();
 }
 
@@ -561,29 +618,33 @@ function checkInteractions() {
   for (let npc of npcs) {
     if (npc.isDead) continue;
     let d = dist(player.x, player.y, npc.x, npc.y);
+    
     if (d < 100) {
       playerNearNpc = true;
-      // 只有在沒有顯示結果訊息時才顯示新問題（避免蓋掉結果訊息）
+      
+      // 只有在「目前沒在顯示問答」且「沒在顯示結果訊息」時才觸發新問題
       if (!showQuiz && resultTimer === 0) {
         currentNpc = npc;
         currentQuestion = getRandomQuestion(npc);
+        
+        // --- 重要：觸發新問題時，重置打字機索引 ---
+        typewriterIndex = 0; 
+        
         showQuiz = true;
         userAnswer = '';
         quizResult = '';
-        
       }
       break;
     }
   }
   
-  // 如果玩家離開所有 NPC，關閉問答框
+  // 如果玩家離開所有 NPC，關閉問答框並重置
   if (!playerNearNpc && showQuiz) {
     showQuiz = false;
     userAnswer = '';
-    // 記錄為未回答的題目
-    
     currentNpc = null;
     currentQuestion = null;
+    typewriterIndex = 0; // 離開時也重置，確保下次進入正常
   }
   
   // 檢查與 hint NPC 的距離
@@ -631,97 +692,150 @@ function getRandomQuestion(npc) {
 }
 
 function drawQuizBox() {
-  // ===== 提問者對話框設定 =====
-  // 位置：提問者頭上
-  // 大小：寬 300px，高 150px
-  // 背景色：白色，透明度 230
-  // 邊框：黑色，粗細 3px
-  // 圓角：10px
-  fill(255, 255, 255, 230);
-  stroke(0);
-  strokeWeight(3);
-  rect(currentNpc.x - 150, currentNpc.y - 200, 300, 150, 10);
+  if (!currentNpc || !currentQuestion) return;
+
+  // 使用 p5.js 的繪圖上下文來製作發光/陰影效果
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = color(0, 0, 0, 100);
+
+  // --- A. NPC 提問框美化 ---
+  let bx = currentNpc.x - 150, by = currentNpc.y - 220, bw = 300, bh = 150;
   
-  // 問題文字設定
-  // 字體大小：14px
-  // 顏色：黑色
-  // 對齊：左上對齊
-  // 自動換行寬度：280px
+  // 外框
+  fill(40, 40, 60, 240); // 深色質感背板
+  stroke(255);
+  strokeWeight(2);
+  rect(bx, by, bw, bh, 15);
+  
+  // 內裝飾線
+  noFill();
+  stroke(255, 100);
+  rect(bx + 5, by + 5, bw - 10, bh - 10, 10);
+
+  // 角色名字標籤 (Name Tag)
+  fill(255);
+  rect(bx + 20, by - 15, 80, 25, 5);
   fill(0);
   noStroke();
-  textSize(14);
+  textAlign(CENTER, CENTER);
+  textSize(12);
+  text("REAPER", bx + 60, by -1); // 標籤文字
+
+  // 問題文字 (打字機)
+  fill(255);
   textAlign(LEFT, TOP);
-  
-  let question = '???';
-  if (currentQuestion) {
-    question = currentQuestion.question;
+  textSize(15);
+  if (typewriterIndex < currentQuestion.question.length) {
+    typewriterIndex += typewriterSpeed;
   }
+  let qText = currentQuestion.question.substring(0, floor(typewriterIndex));
+  text(qText, bx + 20, by + 25, bw - 40);
+
+  // --- B. 玩家輸入框美化 ---
+  drawingContext.shadowBlur = 10;
+  let px = player.x - 100, py = player.y - 90, pw = 200, ph = 45;
   
-  text(question, currentNpc.x - 140, currentNpc.y - 190, 280);
-  
-  // ===== 玩家輸入框設定 =====
-  // 位置：玩家頭上
-  // 大小：寬 160px，高 40px
-  // 背景色：白色
-  // 邊框：黑色，粗細 2px
-  // 圓角：5px
   fill(255);
   stroke(0);
-  strokeWeight(2);
-  rect(player.x - 80, player.y - 80, 160, 40, 5);
-  
-  // 輸入文字設定
-  // 字體大小：20px
-  // 顏色：黑色
-  // 對齊：置中
+  strokeWeight(3);
+  rect(px, py, pw, ph, 8); // 稍微加寬的輸入框
+
+  // 游標與文字
+  let cursor = (floor(frameCount / 25) % 2 === 0) ? "|" : "";
   fill(0);
   noStroke();
-  textSize(20);
   textAlign(CENTER, CENTER);
-  text(userAnswer, player.x, player.y - 50);
-  
-  // 提示文字設定
-  // 字體大小：12px
-  textSize(12);
-  text('輸入答案並按 Enter', player.x, player.y - 70);
+  textSize(22);
+  text(userAnswer + cursor, player.x, py + ph/2+2);
+
+  // 重置陰影，避免影響後續繪圖
+  drawingContext.shadowBlur = 0;
 }
 
 function drawHintPrompt() {
-  fill(255, 255, 255, 230);
-  stroke(0);
-  strokeWeight(2);
-  rect(hintNpc.x - 110, hintNpc.y - 100, 220, 60, 10);
-  
-  fill(0);
+  push();
+  // 加上陰影
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = color(0, 0, 0, 120);
+
+  let bx = hintNpc.x - 110, by = hintNpc.y - 110, bw = 220, bh = 70;
+
+  // --- 外框 (琥珀色系) ---
+  fill(255, 245, 200, 240); // 柔和的羊皮紙色
+  stroke(150, 100, 50);    // 棕色邊框
+  strokeWeight(3);
+  rect(bx, by, bw, bh, 12);
+
+  // 內裝飾線
+  stroke(150, 100, 50, 80);
+  strokeWeight(1);
+  rect(bx + 4, by + 4, bw - 8, bh - 8, 8);
+
+  // 標籤 (Label)
+  fill(150, 100, 50);
+  rect(bx + 15, by - 12, 60, 22, 5);
+  fill(255);
   noStroke();
-  textSize(12);
+  textAlign(CENTER, CENTER);
+  textSize(11);
+  text("CAT INFO", bx + 45, by +1);
+
+  // 提示文字內容
+  fill(60, 40, 20); // 深褐色文字
+  noStroke();
   textAlign(CENTER, CENTER);
   
   if (hintMessage === '') {
-    text('按 F 以獲取提示', hintNpc.x, hintNpc.y - 70);
+    textSize(14);
+    text('按 F 以獲取提示', hintNpc.x, by + bh/2+2);
   } else {
-    let hint = hintMessage;
-    if (!hintNpc.hasHints) {
-      hint = '???';
-    }
-    text(hint, hintNpc.x - 88, hintNpc.y - 70, 180);
+    let hint = hintNpc.hasHints ? hintMessage : '???';
+    textSize(14);
+    // 使用 wrap 寬度，避免文字超出
+    text(hint, bx + 15, by + 13, bw - 30, bh - 20);
   }
+
+  pop();
 }
 
 function drawResultMessage() {
-  // 結果訊息顯示在提問者頭上
   if (!resultNpc) return;
+
+  push();
+  // 強力陰影，讓反饋更醒目
+  drawingContext.shadowBlur = 20;
   
-  fill(255, 255, 255, 230);
-  stroke(0);
-  strokeWeight(3);
-  rect(resultNpc.x - 100, resultNpc.y - 130, 200, 60, 10);
-  
-  fill(0);
+  // 判定配色：答對(綠) vs 答錯(紅)
+  let isCorrect = quizResult.includes('對');
+  let mainColor = isCorrect ? color(46, 204, 113) : color(231, 76, 60);
+  drawingContext.shadowColor = mainColor;
+
+  let bx = resultNpc.x - 100, by = resultNpc.y - 140, bw = 200, bh = 60;
+
+  // --- 背景框 ---
+  fill(255, 255, 255, 250); 
+  stroke(mainColor);
+  strokeWeight(4);
+  rect(bx, by, bw, bh, 10);
+
+  // 標籤 (STATUS)
+  fill(mainColor);
+  rect(bx + 15, by - 12, 70, 22, 5);
+  fill(255);
   noStroke();
-  textSize(18);
   textAlign(CENTER, CENTER);
-  text(quizResult, resultNpc.x, resultNpc.y - 97);
+  textSize(11);
+  text(isCorrect ? "SUCCESS" : "FAILED", bx + 50, by - 1);
+
+  // 結果文字
+  fill(isCorrect ? color(20, 100, 50) : color(100, 20, 20));
+  noStroke();
+  textAlign(CENTER, CENTER);
+  textSize(16);
+  textStyle(BOLD);
+  text(quizResult, resultNpc.x, by + bh/2+5);
+
+  pop();
 }
 
 function keyPressed() {
@@ -805,6 +919,10 @@ function checkAnswer() {
     }
   } else {
     quizResult = '答錯了，答案是 ' + currentQuestion.answer;
+    shakeAmount = 10; // 觸發震動，強度為 10
+    if (currentNpc) {
+      currentNpc.shakeAmount = 10; // 只有當前的提問者會抖
+    }
     // 記錄為答錯的題目
     if (currentNpc && currentQuestion) {
       let npcIdx = currentNpc.npcIndex;   // 0,1,2
@@ -869,53 +987,107 @@ function drawBackgroundCover(img) {
 function drawTutorialPopup() {
   push();
 
-  // 半透明黑色背景
-  fill(0, 150);
+  // 1. 全螢幕半透明黑色背景 (稍微加深增加氛圍)
+  fill(0, 180);
   noStroke();
   rect(0, 0, width, height);
 
-  // 白色彈窗本體
+  // 2. 彈窗設定
   let w = 500;
-  let h = 320;
+  let h = 350; // 稍微加高一點點，讓文字不擁擠
   let x = (width - w) / 2;
   let y = (height - h) / 2;
 
+  // --- 增加外發光效果 ---
+  drawingContext.shadowBlur = 20;
+  drawingContext.shadowColor = color(0, 150, 255, 150);
+
+  // 彈窗本體 (深色質感)
+  fill(30, 35, 50, 250); 
+  stroke(255);
+  strokeWeight(3);
+  rect(x, y, w, h, 20); // 增加圓角
+
+  // 內部裝飾細邊框
+  stroke(255, 40);
+  strokeWeight(1);
+  rect(x + 10, y + 10, w - 20, h - 20, 15);
+
+  // 3. 頂部標籤標題 (GAME INFO)
+  drawingContext.shadowBlur = 0; // 關閉文字陰影避免模糊
   fill(255);
-  stroke(0);
-  strokeWeight(2);
-  rect(x, y, w, h, 12);
-
-  // 文字內容
+  rect(x + w / 2 - 60, y - 15, 120, 30, 8);
+  
   fill(0);
   noStroke();
-  textSize(18);
+  textSize(14);
+  textAlign(CENTER, CENTER);
+  textStyle(BOLD);
+  text("使用說明", width / 2, y+2);
+
+  // 4. 文字內容 (分段上色以突出重點)
   textAlign(CENTER, TOP);
+  let contentY = y + 45;
+  
+  // 第一段
+  fill(255);
+  textStyle(NORMAL);
+  textSize(17);
+  text("往左、往右、往下走會遇到", width / 2, contentY);
+  
+  // 關鍵字：死神
+  fill(255, 80, 80); // 紅色
+  textStyle(BOLD);
+  textSize(22);
+  text("【 死 神 】", width / 2, contentY + 30);
+  
+  // 第二段
+  fill(255);
+  textStyle(NORMAL);
+  textSize(16);
+  text("他們各有兩題問題，會隨機問你。", width / 2, contentY + 65);
+  text("如果答錯了，往上走尋找", width / 2, contentY + 95);
 
-  let msg = 
-    "使用說明\n\n" +
-    "往左、往右、往下走會遇到死神。\n" +
-    "他們各有兩題問題，會隨機問你。\n\n" +
-    "如果答錯了，往上走找貓咪可以取得提示。\n\n" +
-    "答對了才會切換下一題喔！\n" +
-    "努力打敗所有死神吧！";
+  // 關鍵字：貓咪
+  fill(255, 215, 0); // 金黃色
+  textStyle(BOLD);
+  textSize(22);
+  text("【 神 祕 貓 咪 】", width / 2, contentY + 125);
 
-  text(msg, width / 2, y + 25);
+  // 第三段
+  fill(200, 255, 200); // 淡淡的綠色
+  textStyle(NORMAL);
+  textSize(16);
+  text("即可取得提示。", width / 2, contentY + 160);
+  
+  fill(255);
+  textSize(18);
+  textStyle(ITALIC);
+  text("努力打敗所有死神吧！", width / 2, contentY + 200);
 
-  // OK 按鈕
-  let btnW = 120;
-  let btnH = 40;
+  // 5. OK 按鈕設計
+  let btnW = 140;
+  let btnH = 45;
   let btnX = width / 2 - btnW / 2;
-  let btnY = y + h - 60;
+  let btnY = y + h - 65;
 
-  fill(230);
-  stroke(0);
+  // 按鈕發光
+  drawingContext.shadowBlur = 15;
+  drawingContext.shadowColor = color(46, 204, 113, 150);
+
+  // 按鈕本體
+  fill(46, 204, 113); // 翡翠綠
+  stroke(255);
   strokeWeight(2);
-  rect(btnX, btnY, btnW, btnH, 8);
+  rect(btnX, btnY, btnW, btnH, 10);
 
-  fill(0);
+  // 按鈕文字
+  drawingContext.shadowBlur = 0;
+  fill(255);
   noStroke();
+  textStyle(BOLD);
   textSize(20);
-  text("OK", width / 2, btnY + btnH / 2 - 8);
+  text("GO!", width / 2, btnY + btnH / 2 - 8);
 
   pop();
 }
@@ -939,6 +1111,9 @@ function mousePressed() {
         mouseY > btnY && mouseY < btnY + btnH) {
 
       showTutorial = false;  // 關閉彈窗
+      for (let i = 0; i < 30; i++) {
+        leaves.push(new Leaf());
+      }
       
       // 播放音效
       if (gameSound) {
