@@ -1,6 +1,6 @@
 ﻿question,answer
 "p5.js控制角色移動時，
-不建議在 keyPressed() 直接改變座標的原因？
+為什麼不在keyPressed()直接改變座標？
 A.事件偵測不連續造成卡頓
 B.會造成記憶體不足
 C.按鍵會被瀏覽器阻擋
