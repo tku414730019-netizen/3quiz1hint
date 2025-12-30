@@ -6,7 +6,7 @@ B.使用frameCount或計數器
 C.使用noLoop()暫停畫面
 D.每幀重新載入圖片",B
 "若要根據角色的動作切換動畫
-（如 stay / walk），較理想的程式結構是？
+（如stay/walk），較理想的程式結構是？
 A.if( )無限套巢
 B.多個draw()分開寫
 C.state狀態機控制
